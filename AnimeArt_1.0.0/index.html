@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>二次元绘图机 1.1.3</title>
+    <title>二次元绘图机 1.1.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -25,50 +25,49 @@
     <div id="authModal" class="fixed inset-0 z-[100] bg-[#0f172a] flex flex-col items-center justify-center p-4">
         <div class="glass-panel w-full max-w-sm p-8 rounded-3xl border border-indigo-500/30 shadow-2xl relative">
             <div class="text-center mb-6">
-                <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-600/20">
                     <i data-lucide="power" class="text-white w-7 h-7"></i>
                 </div>
                 <h2 class="text-2xl font-bold text-white">配置引擎</h2>
-                <p class="text-slate-400 text-xs mt-1">版本 v1.1.3 (公网兼容版)</p>
+                <p class="text-slate-400 text-xs mt-1">版本 v1.1.4 (最终修正版)</p>
             </div>
 
             <div class="space-y-4">
                 <div>
-                    <label class="text-xs font-bold text-indigo-300 ml-1">模型提供商</label>
-                    <select id="providerSelect" onchange="toggleAuthFields()" class="w-full bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-xl outline-none mt-1 focus:border-indigo-500">
-                        <option value="guest" selected>🎁 游客模式 (代码内置Key)</option>
-                        <option value="google">☁️ Google Gemini (免费)</option>
+                    <label class="text-xs font-bold text-indigo-300 ml-1">模型提供商 (Provider)</label>
+                    <select id="providerSelect" onchange="toggleAuthFields()" class="w-full bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-xl outline-none mt-1 focus:border-indigo-500 transition-colors">
+                        <option value="guest" selected>🎁 本地游客模式 (内置Key)</option>
+                        <option value="google">☁️ Google Gemini (免费推荐)</option>
                         <option value="openai">🤖 OpenAI (DALL-E)</option>
-                        <option value="qwen">🐉 阿里千问 (推荐/国内画图稳)</option>
                     </select>
                 </div>
                 
                 <div id="keyField" class="hidden">
-                    <label class="text-xs font-bold text-indigo-300 ml-1">API Key</label>
-                    <input type="password" id="apiKeyInput" class="w-full bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-xl outline-none mt-1 font-mono tracking-wider" placeholder="粘贴密钥..." />
+                    <label class="text-xs font-bold text-indigo-300 ml-1">API Key (密钥)</label>
+                    <input type="password" id="apiKeyInput" class="w-full bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-xl outline-none mt-1 font-mono text-center tracking-wider focus:border-indigo-500 transition-colors" placeholder="粘贴密钥..." />
                 </div>
 
                 <div id="guestHint" class="text-[11px] text-slate-400 bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 leading-relaxed">
-                    <span class="text-indigo-400 font-bold">ℹ️ 修正说明：</span> 已解决“模型找不到”的问题。请在代码第 138 行填入您的正式 Key。
+                    <span class="text-indigo-400 font-bold">ℹ️ 提示：</span> 请确保您已在代码第 138 行填入 `AIzaSy` 开头的 Key。
                 </div>
                 
                 <div id="loginError" class="hidden text-xs text-red-400 text-center bg-red-500/10 p-2 rounded-lg border border-red-500/20"></div>
             </div>
 
-            <button onclick="saveAuthAndStart()" id="launchBtn" class="w-full mt-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition-all">
+            <button onclick="saveAuthAndStart()" id="launchBtn" class="w-full mt-6 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/25 active:scale-95 transition-all">
                 立即启动
             </button>
         </div>
     </div>
 
-    <!-- 2. 界面主体 -->
+    <!-- 2. 顶部栏 -->
     <header class="max-w-4xl mx-auto w-full flex items-center justify-between mb-4">
         <div class="flex items-center gap-3">
             <div class="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                 <i data-lucide="zap" class="text-white w-5 h-5"></i>
             </div>
             <div>
-                <h1 class="text-lg font-bold text-white tracking-tight leading-none">二次元绘图机 <span class="text-indigo-400">1.1.3</span></h1>
+                <h1 class="text-lg font-bold text-white tracking-tight leading-none">二次元绘图机 <span class="text-indigo-400">1.1.4</span></h1>
                 <p class="text-[10px] text-slate-400 font-mono mt-0.5" id="engineBadge">Engine: Waiting</p>
             </div>
         </div>
@@ -77,28 +76,28 @@
         </button>
     </header>
 
-    <!-- 功能 -->
-    <div class="max-w-4xl mx-auto w-full mb-4 overflow-x-auto">
+    <!-- 功能切换 -->
+    <div class="max-w-4xl mx-auto w-full mb-4 overflow-x-auto no-scrollbar">
         <div class="flex gap-2 min-w-max">
-            <button onclick="switchMode('txt2img')" id="tab-txt2img" class="mode-tab active px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-transparent">灵感绘图</button>
-            <button onclick="switchMode('colorize')" id="tab-colorize" class="mode-tab px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-transparent">自动上色</button>
-            <button onclick="switchMode('lineart')" id="tab-lineart" class="mode-tab px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-transparent">线稿提取</button>
-            <button onclick="switchMode('redraw')" id="tab-redraw" class="mode-tab px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-transparent">风格重绘</button>
+            <button onclick="switchMode('txt2img')" id="tab-txt2img" class="mode-tab active px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-transparent transition-all">灵感绘图</button>
+            <button onclick="switchMode('colorize')" id="tab-colorize" class="mode-tab px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-transparent transition-all">自动上色</button>
+            <button onclick="switchMode('lineart')" id="tab-lineart" class="mode-tab px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-transparent transition-all">线稿提取</button>
+            <button onclick="switchMode('redraw')" id="tab-redraw" class="mode-tab px-4 py-2 rounded-xl bg-slate-800 text-slate-400 text-xs font-bold border border-transparent transition-all">风格重绘</button>
         </div>
     </div>
 
     <div class="max-w-4xl mx-auto w-full flex flex-col lg:flex-row gap-4">
         <aside class="w-full lg:w-1/3 flex flex-col gap-4">
             <div class="glass-panel p-4 rounded-2xl">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block tracking-widest">画风预设</label>
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">画风预设</label>
                 <div class="grid grid-cols-2 gap-2" id="styleGrid"></div>
             </div>
             <div id="uploadCard" class="glass-panel p-4 rounded-2xl hidden">
                 <label class="text-xs font-bold text-slate-500 mb-3 block">参考底图 (必选)</label>
                 <input type="file" id="imageInput" class="hidden" accept="image/*" />
-                <div id="uploadBox" class="h-32 border-2 border-dashed border-slate-700 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-800/50" onclick="document.getElementById('imageInput').click()">
+                <div id="uploadBox" class="h-32 border-2 border-dashed border-slate-700 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-800/50 transition-all" onclick="document.getElementById('imageInput').click()">
                     <i data-lucide="image-plus" class="text-slate-400 mb-2"></i>
-                    <span class="text-[10px] text-slate-500">点击上传图片</span>
+                    <span class="text-[10px] text-slate-500">点击上传参考图片</span>
                 </div>
                 <div id="previewBox" class="hidden relative h-40 bg-slate-900 rounded-xl overflow-hidden border border-slate-700">
                     <img id="previewImg" class="w-full h-full object-contain" />
@@ -111,16 +110,18 @@
             <textarea id="promptInput" class="glass-panel w-full h-24 bg-transparent text-sm p-4 rounded-2xl resize-none outline-none placeholder-slate-600 text-slate-200" placeholder="在此输入画面描述..."></textarea>
             <button onclick="startGenerate()" id="genBtn" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">开始生成</button>
             <div id="outputArea" class="glass-panel rounded-2xl min-h-[350px] flex items-center justify-center relative overflow-hidden bg-slate-900/30">
-                <div id="loader" class="hidden flex flex-col items-center gap-4">
+                <div id="loader" class="hidden flex flex-col items-center gap-4 z-20">
                     <div class="cyber-loader"></div>
-                    <p class="text-indigo-400 font-bold text-xs animate-pulse font-mono tracking-widest">RENDERING...</p>
+                    <p class="text-indigo-400 font-bold text-xs animate-pulse">正在利用 AI 算力绘图中...</p>
                 </div>
                 <img id="resultImg" class="hidden max-w-full max-h-[600px] object-contain shadow-2xl rounded-lg z-10" />
                 <div id="placeholder" class="text-center p-8 text-slate-600 flex flex-col items-center gap-2">
                     <i data-lucide="image" class="w-8 h-8"></i>
                     <span class="text-sm">画布准备就绪</span>
                 </div>
-                <button id="dlBtn" onclick="downloadResult()" class="hidden absolute bottom-4 bg-white text-slate-900 px-5 py-2 rounded-full font-bold text-xs shadow-xl z-30">保存到相册</button>
+                <button id="dlBtn" onclick="downloadResult()" class="hidden absolute bottom-4 bg-white text-slate-900 px-5 py-2 rounded-full font-bold text-xs shadow-xl z-30 flex items-center gap-2">
+                    <i data-lucide="download" class="w-3 h-3"></i> 下载图片
+                </button>
             </div>
         </main>
     </div>
@@ -139,10 +140,10 @@
 
         let appState = { mode: 'txt2img', style: 'modern', imgBase64: null, provider: 'guest', userKey: '', isProcessing: false };
         const styles = [
-            { id: 'modern', name: '🎮 现代游戏', tags: 'masterpiece, best quality, game cg, ray tracing' },
-            { id: 'cell', name: '📺 清新赛璐珞', tags: 'anime style, flat color, clean lines' },
-            { id: 'sketch', name: '✏️ 极致线稿', tags: 'monochrome, lineart, sketch' },
-            { id: 'retro', name: '📼 90年代复古', tags: '1990s style, retro anime' }
+            { id: 'modern', name: '🎮 现代游戏', tags: 'masterpiece, best quality, game cg, ray tracing, 8k wallpaper' },
+            { id: 'cell', name: '📺 清新赛璐珞', tags: 'anime style, flat color, studio ghibli, clean lines' },
+            { id: 'sketch', name: '✏️ 极致线稿', tags: 'monochrome, lineart, sketch, manga style, white background' },
+            { id: 'retro', name: '📼 90年代复古', tags: '1990s style, retro anime, old anime' }
         ];
 
         function init() {
@@ -153,9 +154,9 @@
         }
 
         window.toggleAuthFields = () => {
-            const isGuest = document.getElementById('providerSelect').value === 'guest';
-            document.getElementById('keyField').classList.toggle('hidden', isGuest);
-            document.getElementById('guestHint').classList.toggle('hidden', !isGuest);
+            const val = document.getElementById('providerSelect').value;
+            document.getElementById('keyField').classList.toggle('hidden', val === 'guest');
+            document.getElementById('guestHint').classList.toggle('hidden', val !== 'guest');
         }
 
         window.saveAuthAndStart = () => {
@@ -166,8 +167,8 @@
             appState.provider = provider;
             appState.userKey = key;
             document.getElementById('authModal').classList.add('hidden-modal');
-            const displayNames = { 'guest': '本地房主', 'google': 'Google', 'openai': 'OpenAI', 'qwen': '阿里' };
-            document.getElementById('engineBadge').innerText = `Engine: ${displayNames[provider]}`;
+            const names = { 'guest': '房主赞助', 'google': 'Google', 'openai': 'OpenAI' };
+            document.getElementById('engineBadge').innerText = `Engine: ${names[provider]}`;
         }
 
         window.openSettings = () => document.getElementById('authModal').classList.remove('hidden-modal');
@@ -179,7 +180,7 @@
             const useKey = appState.provider === 'guest' ? SITE_CONFIG.guest_key : appState.userKey;
             const provider = appState.provider === 'guest' ? SITE_CONFIG.guest_provider : appState.provider;
 
-            if (appState.mode !== 'txt2img' && !appState.imgBase64) return showToast("⚠️ 请先上传底图");
+            if (appState.mode !== 'txt2img' && !appState.imgBase64) return showToast("⚠️ 请先上传参考图");
 
             appState.isProcessing = true;
             document.getElementById('loader').classList.remove('hidden');
@@ -190,25 +191,24 @@
             try {
                 let imgUrl = "";
                 if (provider === 'google') {
-                    // --- 修正后的 Google 逻辑 ---
-                    // 使用正式公开模型名字 gemini-1.5-flash
+                    // --- 核心修正：使用稳定的 Google 模型名字 ---
                     const modelName = "gemini-1.5-flash"; 
                     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${useKey}`;
                     
-                    let taskPrompt = "";
-                    if (appState.mode === 'txt2img') taskPrompt = `Draw a high-quality anime girl based on: ${style.tags}, ${prompt}. Return the result as a raw base64 image data ONLY.`;
-                    else if (appState.mode === 'lineart') taskPrompt = "Extract clean black lineart from this image.";
-                    else if (appState.mode === 'colorize') taskPrompt = `Colorize this lineart in vibrant anime style. ${prompt}`;
-                    else taskPrompt = `Redraw this in ${style.name} style. ${prompt}`;
+                    let taskText = "";
+                    if (appState.mode === 'txt2img') taskText = `Draw a high-quality anime artwork: ${style.tags}, ${prompt}. Output as base64 image.`;
+                    else if (appState.mode === 'lineart') taskText = "Extract clean black and white lineart from this image.";
+                    else if (appState.mode === 'colorize') taskText = `Colorize this lineart in vibrant anime style. Wishes: ${prompt}`;
+                    else taskText = `Redraw this in ${style.name} style. ${prompt}`;
 
                     const payload = { 
                         contents: [{ 
                             parts: [
-                                { text: taskPrompt },
+                                { text: taskText },
                                 ...(appState.imgBase64 ? [{ inlineData: { mimeType: "image/png", data: appState.imgBase64 } }] : [])
                             ] 
                         }],
-                        // 尝试请求图像输出 (注意：部分公网 Key 权限受限，如果报错说明该 Key 不支持生成)
+                        // 尝试请求图像输出 (注意：Imagen 权限受限可能导致此步失败，如果失败会进入 catch)
                         generationConfig: { responseModalities: ["IMAGE"] } 
                     };
                     
@@ -218,11 +218,12 @@
                     if (data.error) throw new Error(`Google API: ${data.error.message}`);
                     
                     const imagePart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-                    if (!imagePart) throw new Error("Google 引擎目前只支持看图，暂未开放该 Key 的‘绘图’权限，请尝试切换 OpenAI 或阿里引擎。");
+                    if (!imagePart) throw new Error("此 Key 暂未开通 Google 绘图权限，请尝试在‘设置’里切换为 OpenAI 引擎。");
                     imgUrl = `data:image/png;base64,${imagePart.inlineData.data}`;
 
-                } else if (provider === 'openai') {
-                    if (appState.mode !== 'txt2img') throw new Error("OpenAI 引擎暂不支持图像处理，请改用文生图。");
+                } else {
+                    // OpenAI 逻辑
+                    if (appState.mode !== 'txt2img') throw new Error("OpenAI 引擎目前仅支持‘灵感绘图’。");
                     const res = await fetch('https://api.openai.com/v1/images/generations', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useKey}` },
@@ -231,9 +232,6 @@
                     const data = await res.json();
                     if (data.error) throw new Error(data.error.message);
                     imgUrl = `data:image/png;base64,${data.data[0].b64_json}`;
-                } else if (provider === 'qwen') {
-                    // 预留给阿里千问的逻辑 (由于其接口非标准，这里提示用户)
-                    throw new Error("阿里千问引擎正在对接中，请先使用 Google 或 OpenAI 引擎。");
                 }
 
                 document.getElementById('resultImg').src = imgUrl;
@@ -260,10 +258,15 @@
             document.querySelectorAll('.mode-tab').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${mode}`).classList.add('active');
             document.getElementById('uploadCard').classList.toggle('hidden', mode === 'txt2img');
+            const hints = {
+                txt2img: "描述你想看到的画面...",
+                colorize: "描述配色要求 (如: 粉色调)...",
+                lineart: "不需要输入，直接点开始生成...",
+                redraw: "描述需要修改的细节..."
+            };
+            document.getElementById('promptInput').placeholder = hints[mode];
         }
         document.getElementById('imageInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if(!file) return;
             const reader = new FileReader();
             reader.onload = (evt) => {
                 appState.imgBase64 = evt.target.result.split(',')[1];
@@ -271,7 +274,7 @@
                 document.getElementById('uploadBox').classList.add('hidden');
                 document.getElementById('previewBox').classList.remove('hidden');
             };
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(e.target.files[0]);
         });
         window.clearImage = () => {
             appState.imgBase64 = null;
@@ -282,7 +285,7 @@
         function showToast(msg) {
             const t = document.getElementById('toast');
             t.innerText = msg; t.classList.remove('hidden');
-            setTimeout(() => t.classList.add('hidden'), 6000);
+            setTimeout(() => t.classList.add('hidden'), 5000);
         }
         window.downloadResult = () => {
             const link = document.createElement('a');

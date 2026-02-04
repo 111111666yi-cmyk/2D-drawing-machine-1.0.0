@@ -3,13 +3,53 @@ import random
 import logging
 import requests
 import base64
+import time
 from flask import Flask, render_template, request, jsonify
 
 # 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# ==========================================
+# 🎨 超级风格预设库 (Style Library)
+# ==========================================
+STYLES = {
+    "default": "anime style, masterpiece, best quality, ultra-detailed, 8k wallpaper, beautiful detailed eyes",
+    # ─── 技法流派 ───
+    "impasto": "impasto, thick painting, oil painting, brush strokes, rich colors, dimensional, texture",
+    "cel_shading": "cel shading, flat color, clean lines, anime screencap, minimalist, vibrant, sharp shadows",
+    "watercolor": "watercolor, wet media, soft edges, splatter, color bleed, gentle, healing atmosphere",
+    "sketch": "sketch, pencil sketch, monochrome, lineart, rough lines, cross-hatching, artistic",
+    "ink": "ink wash painting, sumi-e, calligraphy brush, black and white, traditional art, abstract",
+    "pixel": "pixel art, 16-bit, dot art, retro game, low res, nostalgic",
+    # ─── 知名画师风格 ───
+    "wlop": "WLOP style, fantasy, ethereal, highly detailed, dynamic lighting, princess, cinematic",
+    "guweiz": "Guweiz style, cool color palette, urban samurai, storytelling, dramatic shadow, sharp focus",
+    "mika_pikazo": "Mika Pikazo style, vivid colors, pop art, geometric patterns, energetic, fashion",
+    "alphonse_mucha": "Alphonse Mucha style, art nouveau, intricate floral decoration, stained glass, elegant curves",
+    "clamp": "Clamp style, 90s anime, long legs, gorgeous costumes, dramatic wind, shoujo manga",
+    # ─── 氛围流派 ───
+    "cyberpunk": "cyberpunk, neon lights, mechanical parts, hologram, futuristic city, chromatic aberration, rain",
+    "steampunk": "steampunk, gears, brass, goggles, victorian era, clockwork, sepia tone",
+    "gothic": "gothic lolita, dark fantasy, somber atmosphere, church, stained glass, ruins, mystery",
+    "vaporwave": "vaporwave, retro 80s anime, neon pastel, glitch effect, vhs artifact, city pop, lo-fi",
+    "dreamy": "pastel colors, dreamy, fairy tale, soft light, fluffy, kawaii, marshmallows"
+}
+
+# ==========================================
+# ✨ 光影与视角增强包 (Lighting & Camera)
+# ==========================================
+LIGHTING_FX = {
+    "none": "",
+    "cinematic": "cinematic lighting, dramatic atmosphere, movie scene, depth of field",
+    "volumetric": "volumetric lighting, god rays, tyndall effect, misty atmosphere",
+    "bioluminescence": "bioluminescence, glowing particles, magical forest, night scene, ethereal glow",
+    "rembrandt": "rembrandt lighting, chiaroscuro, strong contrast, dramatic shadows",
+    "fisheye": "fisheye lens, wide angle, distorted perspective, dynamic action",
+    "close_up": "close-up, detailed face, macro photography, emotional expression"
+}
 
 # 环境变量
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -23,131 +63,87 @@ def index():
 def generate():
     try:
         data = request.json
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
+        if not data: return jsonify({"error": "No data"}), 400
 
+        # 获取前端参数
         provider = data.get('provider', 'guest')
-        mode = data.get('mode', 'txt2img')
-        prompt = data.get('prompt', 'anime girl')
-        image_base64 = data.get('image') 
+        user_prompt = data.get('prompt', '')
+        style_key = data.get('style', 'default')
+        lighting_key = data.get('lighting', 'none')
+        user_key = data.get('api_key', '').strip()
         
-        # 🟢 关键修复：去除 Key 首尾的空格和换行符
-        user_key = data.get('api_key', '').strip() if data.get('api_key') else None
+        # 🎲 核心逻辑：种子控制 (实现二次绘图的关键)
+        # 如果前端传了 seed (用户点击了"微调")，就用旧的；否则生成新的
+        seed = data.get('seed')
+        if seed is None or seed == "":
+            seed = random.randint(0, 10000000)
+        else:
+            seed = int(seed) # 锁定种子
 
-        logger.info(f"收到请求: Provider={provider}, Mode={mode}")
+        logger.info(f"请求: {provider} | 风格: {style_key} | 种子: {seed}")
+
+        # 1. 组合超级提示词
+        # 结构：[质量词] + [风格词] + [光影词] + [用户描述]
+        base_quality = "masterpiece, best quality, ultra-detailed, highres"
+        style_prompt = STYLES.get(style_key, STYLES['default'])
+        lighting_prompt = LIGHTING_FX.get(lighting_key, "")
+        
+        final_prompt = f"{base_quality}, {style_prompt}, {lighting_prompt}, {user_prompt}"
 
         # ==========================================
-        # 🎁 方案 A: 游客模式 (服务器代下载加速版)
+        # 🎁 游客模式 (Pollinations) - 支持种子锁定
         # ==========================================
         if provider == 'guest':
-            seed = random.randint(0, 1000000)
-            # 优化提示词，确保二次元风格
-            final_prompt = f"anime style, masterpiece, best quality, {prompt}"
-            if mode == 'lineart':
-                final_prompt = f"monochrome lineart, sketch, {prompt}"
-            
-            # 使用 Pollinations 接口
+            # Pollinations 完美支持 seed 参数
             image_url = f"https://pollinations.ai/p/{final_prompt.replace(' ', '%20')}?width=1024&height=1024&seed={seed}&nologo=true&model=any-dark"
             
-            logger.info("正在使用 Zeabur 服务器加速下载游客图片...")
-            
-            # ⚡ 服务器端代理下载 (解决客户端加载慢的问题)
             try:
-                # 设置 15 秒超时
-                img_resp = requests.get(image_url, timeout=15)
-                if img_resp.status_code == 200:
-                    # 转为 Base64 直接返回给前端
-                    img_b64 = base64.b64encode(img_resp.content).decode('utf-8')
-                    return jsonify({"image_b64": img_b64})
-                else:
-                    return jsonify({"error": "游客绘图引擎暂时繁忙，请重试"}), 502
+                resp = requests.get(image_url, timeout=25)
+                if resp.status_code == 200:
+                    img_b64 = base64.b64encode(resp.content).decode('utf-8')
+                    # ✅ 返回 image_b64 以及本次使用的 seed，方便前端下次复用
+                    return jsonify({"image_b64": img_b64, "seed": seed})
+                return jsonify({"image_url": image_url, "seed": seed})
             except Exception as e:
-                logger.error(f"游客模式下载失败: {e}")
-                return jsonify({"image_url": image_url}) # 如果服务器下载失败，回退到让前端自己加载
+                logger.error(f"Guest timeout: {e}")
+                return jsonify({"image_url": image_url, "seed": seed})
 
         # ==========================================
-        # ☁️ 方案 B: Google Gemini
-        # ==========================================
-        elif provider == 'google':
-            key = user_key if user_key else GOOGLE_API_KEY
-            if not key: return jsonify({"error": "未配置 Google Key"}), 400
-
-            # 调试日志：检查 Key 是否读取正确 (只显示前5位)
-            logger.info(f"使用 Google Key: {key[:5]}******")
-
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
-            
-            # Gemini 绘图通常需要 Imagen 模型，Flash 主要用于文本/识别
-            # 这里保持原逻辑，但建议用户确认 Key 权限
-            payload = {
-                "contents": [{ "parts": [{"text": f"Draw anime: {prompt}"}] }]
-            }
-            if image_base64:
-                 payload['contents'][0]['parts'].append({"inlineData": {"mimeType": "image/png", "data": image_base64}})
-
-            try:
-                resp = requests.post(url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
-                res_json = resp.json()
-                
-                if "error" in res_json:
-                    return jsonify({"error": f"Google 报错: {res_json['error']['message']}"}), 500
-                
-                # 尝试提取图片
-                candidates = res_json.get('candidates', [])
-                if candidates:
-                    for part in candidates[0].get('content', {}).get('parts', []):
-                        if 'inlineData' in part:
-                            return jsonify({"image_b64": part['inlineData']['data']})
-                return jsonify({"error": "Gemini 仅返回了文本，该模型版本可能不支持直接绘图。"}), 500
-            except Exception as e:
-                return jsonify({"error": f"Google 请求异常: {str(e)}"}), 500
-
-        # ==========================================
-        # 🤖 方案 C: OpenAI DALL-E 3
+        # 🤖 OpenAI DALL-E 3
         # ==========================================
         elif provider == 'openai':
             key = user_key if user_key else OPENAI_API_KEY
-            if not key: return jsonify({"error": "未配置 OpenAI Key"}), 400
-            
-            # 🟢 调试日志：关键步骤
-            logger.info(f"正在调用 OpenAI, Key 长度: {len(key)}, 前缀: {key[:3]}...")
+            if not key: return jsonify({"error": "请输入 OpenAI Key"}), 400
 
             try:
+                # 注意：DALL-E 3 API 不直接支持 seed 参数来固定画面
+                # 但我们可以把 style 强行写入 prompt 来尽可能保持一致
                 resp = requests.post(
                     "https://api.openai.com/v1/images/generations",
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {key}" # 这里已经去除了空格
-                    },
+                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
                     json={
                         "model": "dall-e-3",
-                        "prompt": f"Anime style artwork, masterpiece. {prompt}",
-                        "n": 1,
+                        "prompt": final_prompt,
+                        "n": 1, 
                         "size": "1024x1024",
-                        "response_format": "b64_json"
+                        "response_format": "b64_json",
+                        "quality": "standard" 
                     },
-                    timeout=60
+                    timeout=55
                 )
                 res_json = resp.json()
-                
-                # 精确捕获 OpenAI 错误
                 if "error" in res_json:
-                    err_msg = res_json['error']['message']
-                    err_code = res_json['error'].get('code', 'unknown')
-                    logger.error(f"OpenAI Error: {err_msg}")
-                    return jsonify({"error": f"OpenAI 拒绝请求 ({err_code}): {err_msg}"}), 500
-
-                return jsonify({"image_b64": res_json['data'][0]['b64_json']})
+                    return jsonify({"error": res_json['error']['message']}), 500
                 
+                return jsonify({"image_b64": res_json['data'][0]['b64_json'], "seed": seed})
             except Exception as e:
-                logger.error(f"OpenAI 网络错误: {e}")
-                return jsonify({"error": "连接 OpenAI 超时，请检查网络或稍后再试"}), 500
+                return jsonify({"error": str(e)}), 500
 
-        return jsonify({"error": "无效的选项"}), 400
+        return jsonify({"error": "Invalid provider"}), 400
 
     except Exception as e:
-        logger.error(f"全局异常: {e}")
-        return jsonify({"error": f"服务器内部错误: {str(e)}"}), 500
+        logger.error(f"Crash: {e}")
+        return jsonify({"error": f"Server Error: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)

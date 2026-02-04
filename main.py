@@ -2,15 +2,16 @@ import os
 import random
 import logging
 import requests
+import base64
 from flask import Flask, render_template, request, jsonify
 
-# 配置日志，方便在 Zeabur 控制台查看报错
-logging.basicConfig(level=logging.INFO)
+# 配置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# 从环境变量获取 API Key
+# 环境变量
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -28,102 +29,99 @@ def generate():
         provider = data.get('provider', 'guest')
         mode = data.get('mode', 'txt2img')
         prompt = data.get('prompt', 'anime girl')
-        image_base64 = data.get('image') # 用于图生图
-        user_key = data.get('api_key')
+        image_base64 = data.get('image') 
+        
+        # 🟢 关键修复：去除 Key 首尾的空格和换行符
+        user_key = data.get('api_key', '').strip() if data.get('api_key') else None
 
-        logger.info(f"收到请求: Provider={provider}, Mode={mode}, Prompt={prompt[:20]}...")
+        logger.info(f"收到请求: Provider={provider}, Mode={mode}")
 
         # ==========================================
-        # 🎁 方案 A: 游客模式 (Pollinations.ai)
+        # 🎁 方案 A: 游客模式 (服务器代下载加速版)
         # ==========================================
         if provider == 'guest':
             seed = random.randint(0, 1000000)
-            # 针对不同模式优化 Prompt
-            base_prompt = f"anime style, masterpiece, best quality, {prompt}"
+            # 优化提示词，确保二次元风格
+            final_prompt = f"anime style, masterpiece, best quality, {prompt}"
             if mode == 'lineart':
-                base_prompt = f"monochrome lineart, sketch, black and white, {prompt}"
-            elif mode == 'colorize':
-                base_prompt = f"vibrant colors, coloring book style, {prompt}"
-
-            # Pollinations 直接返回图片 URL，速度快且免费
-            image_url = f"https://pollinations.ai/p/{base_prompt.replace(' ', '%20')}?width=1024&height=1024&seed={seed}&nologo=true&model=any-dark"
-            return jsonify({"image_url": image_url})
+                final_prompt = f"monochrome lineart, sketch, {prompt}"
+            
+            # 使用 Pollinations 接口
+            image_url = f"https://pollinations.ai/p/{final_prompt.replace(' ', '%20')}?width=1024&height=1024&seed={seed}&nologo=true&model=any-dark"
+            
+            logger.info("正在使用 Zeabur 服务器加速下载游客图片...")
+            
+            # ⚡ 服务器端代理下载 (解决客户端加载慢的问题)
+            try:
+                # 设置 15 秒超时
+                img_resp = requests.get(image_url, timeout=15)
+                if img_resp.status_code == 200:
+                    # 转为 Base64 直接返回给前端
+                    img_b64 = base64.b64encode(img_resp.content).decode('utf-8')
+                    return jsonify({"image_b64": img_b64})
+                else:
+                    return jsonify({"error": "游客绘图引擎暂时繁忙，请重试"}), 502
+            except Exception as e:
+                logger.error(f"游客模式下载失败: {e}")
+                return jsonify({"image_url": image_url}) # 如果服务器下载失败，回退到让前端自己加载
 
         # ==========================================
         # ☁️ 方案 B: Google Gemini
         # ==========================================
         elif provider == 'google':
             key = user_key if user_key else GOOGLE_API_KEY
-            if not key:
-                return jsonify({"error": "未配置 Google API Key，请在设置中输入"}), 400
+            if not key: return jsonify({"error": "未配置 Google Key"}), 400
 
-            # 注意：Gemini 绘图模型通常是 imagen-3.0 或 gemini-pro-vision (但在 API 中通常只支持文本/多模态理解，绘图支持需确认模型版本)
-            # 如果使用 Gemini 1.5 Flash，它主要生成文本。这里假设你使用的是支持绘图的 endpoint 或逻辑
-            # 为了稳健性，这里演示标准的 generateContent 调用
+            # 调试日志：检查 Key 是否读取正确 (只显示前5位)
+            logger.info(f"使用 Google Key: {key[:5]}******")
+
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
             
-            headers = {'Content-Type': 'application/json'}
-            # 构造提示词，强行要求描述画面，因为 Flash 模型本身不能直接画图，除非调用 Imagen 插件
-            # *修正*：如果这是为了对接专门的绘画 API，请确保 URL 正确。
-            # 这里我们保持你原有的逻辑，但增加错误捕获
-            
+            # Gemini 绘图通常需要 Imagen 模型，Flash 主要用于文本/识别
+            # 这里保持原逻辑，但建议用户确认 Key 权限
             payload = {
-                "contents": [{
-                    "parts": [{"text": f"Draw this: {prompt}"}]
-                }]
+                "contents": [{ "parts": [{"text": f"Draw anime: {prompt}"}] }]
             }
-            
-            # 如果有图片上传（图生图）
-            if image_base64 and mode != 'txt2img':
-                payload['contents'][0]['parts'].append({
-                    "inlineData": {
-                        "mimeType": "image/png",
-                        "data": image_base64
-                    }
-                })
+            if image_base64:
+                 payload['contents'][0]['parts'].append({"inlineData": {"mimeType": "image/png", "data": image_base64}})
 
-            response = requests.post(url, headers=headers, json=payload, timeout=60)
-            res_json = response.json()
-
-            if "error" in res_json:
-                logger.error(f"Google API Error: {res_json}")
-                return jsonify({"error": res_json['error']['message']}), 500
-            
-            # 尝试解析返回内容 (注意：Flash 模型通常返回文本描述，而非直接图片Base64，除非是特定多模态输出)
-            # 这里保留你的原有解析逻辑，但增加保护
             try:
-                # 假设 API 返回了 inlineData (图片)
+                resp = requests.post(url, json=payload, headers={'Content-Type': 'application/json'}, timeout=60)
+                res_json = resp.json()
+                
+                if "error" in res_json:
+                    return jsonify({"error": f"Google 报错: {res_json['error']['message']}"}), 500
+                
+                # 尝试提取图片
                 candidates = res_json.get('candidates', [])
                 if candidates:
-                    parts = candidates[0].get('content', {}).get('parts', [])
-                    for part in parts:
+                    for part in candidates[0].get('content', {}).get('parts', []):
                         if 'inlineData' in part:
                             return jsonify({"image_b64": part['inlineData']['data']})
-                
-                # 如果没有图片，返回文本作为错误提示，或者回退
-                return jsonify({"error": "Google 模型未返回图片数据，请检查模型权限或切换游客模式"}), 500
+                return jsonify({"error": "Gemini 仅返回了文本，该模型版本可能不支持直接绘图。"}), 500
             except Exception as e:
-                logger.error(f"Parsing Error: {str(e)}")
-                return jsonify({"error": "解析 Google 返回数据失败"}), 500
+                return jsonify({"error": f"Google 请求异常: {str(e)}"}), 500
 
         # ==========================================
         # 🤖 方案 C: OpenAI DALL-E 3
         # ==========================================
         elif provider == 'openai':
             key = user_key if user_key else OPENAI_API_KEY
-            if not key:
-                return jsonify({"error": "未配置 OpenAI Key"}), 400
+            if not key: return jsonify({"error": "未配置 OpenAI Key"}), 400
+            
+            # 🟢 调试日志：关键步骤
+            logger.info(f"正在调用 OpenAI, Key 长度: {len(key)}, 前缀: {key[:3]}...")
 
             try:
                 resp = requests.post(
                     "https://api.openai.com/v1/images/generations",
                     headers={
                         "Content-Type": "application/json",
-                        "Authorization": f"Bearer {key}"
+                        "Authorization": f"Bearer {key}" # 这里已经去除了空格
                     },
                     json={
                         "model": "dall-e-3",
-                        "prompt": f"Anime style, {prompt}",
+                        "prompt": f"Anime style artwork, masterpiece. {prompt}",
                         "n": 1,
                         "size": "1024x1024",
                         "response_format": "b64_json"
@@ -131,19 +129,25 @@ def generate():
                     timeout=60
                 )
                 res_json = resp.json()
-                if "error" in res_json:
-                    return jsonify({"error": res_json['error']['message']}), 500
                 
-                return jsonify({"image_b64": res_json['data'][0]['b64_json']})
-            except Exception as e:
-                return jsonify({"error": f"OpenAI 请求失败: {str(e)}"}), 500
+                # 精确捕获 OpenAI 错误
+                if "error" in res_json:
+                    err_msg = res_json['error']['message']
+                    err_code = res_json['error'].get('code', 'unknown')
+                    logger.error(f"OpenAI Error: {err_msg}")
+                    return jsonify({"error": f"OpenAI 拒绝请求 ({err_code}): {err_msg}"}), 500
 
-        return jsonify({"error": "无效的服务商"}), 400
+                return jsonify({"image_b64": res_json['data'][0]['b64_json']})
+                
+            except Exception as e:
+                logger.error(f"OpenAI 网络错误: {e}")
+                return jsonify({"error": "连接 OpenAI 超时，请检查网络或稍后再试"}), 500
+
+        return jsonify({"error": "无效的选项"}), 400
 
     except Exception as e:
-        logger.error(f"Server Error: {str(e)}")
+        logger.error(f"全局异常: {e}")
         return jsonify({"error": f"服务器内部错误: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    # 本地开发时使用，云端将由 Gunicorn 接管
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=8080)
